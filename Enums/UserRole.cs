@@ -1,4 +1,5 @@
+namespace FlightCast.Enums;
 public enum UserRole
 {
-    Admin,User,Guest
+    Admin, User, Guest
 }
