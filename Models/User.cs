@@ -1,7 +1,8 @@
 using System.ComponentModel.DataAnnotations;
+using FlightCast.Enums;
 namespace FlightCast.Models
 {
-    public class Users
+    public class User
     {
         public int Id { get; set; }
         [Required]

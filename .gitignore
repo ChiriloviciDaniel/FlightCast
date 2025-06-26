@@ -10,6 +10,7 @@
 # Build results
 bin/
 obj/
+Migrations
 
 [Dd]ebug/
 [Dd]ebugPublic/
