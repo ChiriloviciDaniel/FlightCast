@@ -11,6 +11,17 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 builder.Services.AddScoped<IExpensesService, ExpensesService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddHttpClient<IWeatherService, WeatherService>();
+
+builder.Services.AddAuthentication("MyCookieAuth")
+    .AddCookie("MyCookieAuth", options =>
+    {
+        options.LoginPath = "/Login/Index";
+        options.ExpireTimeSpan = TimeSpan.FromDays(1); //set the cookie to expire in 1 day
+
+    });
+//options.AccessDeniedPath = "/Login/AccessDenied";
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -26,6 +37,7 @@ app.UseStaticFiles();
 
 app.UseRouting();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllerRoute(

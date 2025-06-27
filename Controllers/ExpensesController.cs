@@ -1,10 +1,12 @@
 using FlightCast.Data;
 using FlightCast.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace FlightCast.Controllers;
 
+[Authorize(Roles = "Admin, User")] // Only allow Admin and User roles to access this controller
 public class ExpensesController : Controller
 {
     // This controller will handle the expenses-related actions.

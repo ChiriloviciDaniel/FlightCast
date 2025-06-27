@@ -1,0 +1,33 @@
+@model List<WeatherRecord>
+
+@if (Model == null || !Model.Any())
+{
+    <p>No data found for selected period or location</p>
+}
+else
+{
+    <h2>Weather in the past</h2>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Start Date</th>
+                <th>End Date</th>
+                <th>Max Temperature</th>
+                <th>Min Temperature</th>
+                <th>Avg Temperature</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in Model)
+            {
+                <tr>
+                    <td>@item.StartDate.ToString("yyyy-MM-dd")</td>
+                    <td>@item.EndDate.ToString("yyyy-MM-dd")</td>
+                    <td>@item.MaxTemperature</td>
+                    <td>@item.MinTemperature</td>
+                    <td>@item.AverageTemperature</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}

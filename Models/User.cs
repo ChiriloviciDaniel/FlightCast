@@ -10,7 +10,10 @@ namespace FlightCast.Models
         [Required]
         public string Password { get; set; } = null!;
         [Required]
-        public List<UserRole> UserRoles { get; set; } = null!;
+        [EmailAddress(ErrorMessage = "Email invalid")]
+        public string Email { get; set; } = null!;
+        [Required]
+        public UserRole Role { get; set; } 
         public DateTime CreateDate { get; set; } = DateTime.Now;
     }
 }
