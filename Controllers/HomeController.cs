@@ -1,8 +1,10 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using FlightCast.Models;
+using Microsoft.AspNetCore.Authorization;
 
 namespace FlightCast.Controllers;
+
 
 public class HomeController : Controller
 {
@@ -17,7 +19,7 @@ public class HomeController : Controller
     {
         return View();
     }
-
+    [Authorize] //This will ensure that only authenticated users can access this action
     public IActionResult Privacy()
     {
         return View();

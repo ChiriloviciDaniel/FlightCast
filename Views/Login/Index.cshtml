@@ -4,7 +4,7 @@
     <div class="login-form">
 
         <h2 class="text-center">Login</h2>
-        <form asp-action="Login" method="post">
+        <form asp-action="Index" method="post">
             <div class="mb-3">
                 <label asp-for="Username" class="form-label"></label>
                 <input asp-for="Username" class="form-control" />
@@ -16,6 +16,9 @@
             <div asp-validation-summary="ModelOnly" class="text-danger" style="min-height: 1.5em;margin-bottom: 1rem;">
             </div>
             <button type="submit" class=" btn btn-primary w-100">Login</button>
+            <div class="text-center mt-3">
+                <a asp-controller="Login" asp-action="Register">Register here</a>
+            </div>
         </form>
     </div>
 </div>

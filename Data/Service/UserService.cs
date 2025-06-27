@@ -7,10 +7,12 @@ using Microsoft.IdentityModel.Tokens;
 public class UserService : IUserService
 {
     private readonly AppDbContext _context;
-    private readonly PasswordHasher<User> _passwordHasher = new PasswordHasher<User>();
+    private readonly PasswordHasher<User> _passwordHasher;
+
     public UserService(AppDbContext context)
     {
         _context = context;
+        _passwordHasher = new PasswordHasher<User>();
     }
 
     public User? Authenticate(string username, string password)
@@ -20,8 +22,8 @@ public class UserService : IUserService
         {
             return null; //User not found, maybe I can add an error message here 
         }
-        var passwordHasher = new PasswordHasher<User>();
-        var result = passwordHasher.VerifyHashedPassword(user, user.Password, password);
+        //var passwordHasher = new PasswordHasher<User>();
+        var result = _passwordHasher.VerifyHashedPassword(user, user.Password, password);
         if (result == PasswordVerificationResult.Failed)
         {
             return null; //Pasword does not match, maybe I can add an error message here 
@@ -32,7 +34,7 @@ public class UserService : IUserService
     public User RegisterUser(User newUser)
     {
         newUser.Password = _passwordHasher.HashPassword(newUser, newUser.Password);
-        
+
         _context.Users.Add(newUser);
         _context.SaveChanges();
 
