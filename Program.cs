@@ -1,5 +1,4 @@
 using FlightCast.Data;
-using FlightCast.Models;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);

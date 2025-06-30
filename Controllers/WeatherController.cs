@@ -18,16 +18,13 @@ public class WeatherController : Controller
 
    
     [HttpPost]
-    public async Task<IActionResult> GetWeather(WeatherRecord weatherRecord)
+    public async Task<IActionResult> GetWeather(WeatherRequest request)
     {
         if (!ModelState.IsValid)
-            return View(weatherRecord);
+            return View(request);
 
-        var records = await _weatherService.GetHistoricalWeatherAsync(
-            weatherRecord.City,
-            weatherRecord.StartDate,
-            weatherRecord.EndDate
-        );
+        var records = await _weatherService.GetHistoricalWeatherAsync(request);
+
 
         return View("Results", records);
     }
