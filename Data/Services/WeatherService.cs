@@ -52,6 +52,8 @@ public class WeatherService : IWeatherService
             if (!recordsDB.Any())
             {
                 var recordsList = new List<WeatherRecord>();
+
+                //Create a predefined list of cities with their coordinates to avoid multiple API calls
                 var geoResp = await _httpClient.GetFromJsonAsync<GeocodingResponse>(
                     $"https://geocoding-api.open-meteo.com/v1/search?name={request.City}");
 
@@ -62,37 +64,44 @@ public class WeatherService : IWeatherService
                 double lat = location.Latitude;
                 double lon = location.Longitude;
 
-                string url = $"https://archive-api.open-meteo.com/v1/archive" +
-                         $"?latitude={lat}" +
-                         $"&longitude={lon}" +
-                         $"&start_date={request.StartDate:yyyy-MM-dd}" +
-                         $"&end_date={request.EndDate:yyyy-MM-dd}" +
-                         $"&daily=temperature_2m_max,temperature_2m_min" +
-                         $"&timezone=auto";
-
-                var WeatherResponse = await _httpClient.GetFromJsonAsync<WeatherApiResponse>(url);
-                if (WeatherResponse?.Daily?.TemperatureMax == null || WeatherResponse?.Daily?.TemperatureMin == null)
-                    return new List<WeatherRecord>();
-
-                for (int i = 0; i < WeatherResponse.Daily.Time.Length; i++)
+                for (int i = 1; i < 4; i++)
                 {
-                    var max = WeatherResponse.Daily.TemperatureMax[i];
-                    var min = WeatherResponse.Daily.TemperatureMin[i];
 
-                    if (max == null || min == null)
-                        continue;
+                    string url = $"https://archive-api.open-meteo.com/v1/archive" +
+                             $"?latitude={lat}" +
+                             $"&longitude={lon}" +
+                             $"&start_date={request.StartDate.AddYears(-i):yyyy-MM-dd}" +
+                             $"&end_date={request.EndDate.AddYears(-i):yyyy-MM-dd}" +
+                             $"&daily=temperature_2m_max,temperature_2m_min" +
+                             $"&timezone=auto";
 
-                    var record = new WeatherRecord
+                    var WeatherResponse = await _httpClient.GetFromJsonAsync<WeatherApiResponse>(url);
+                    if (WeatherResponse?.Daily?.TemperatureMax == null || WeatherResponse?.Daily?.TemperatureMin == null)
+                        return new List<WeatherRecord>();
+
+                    for (int j = 0; j < WeatherResponse.Daily.Time.Length; j++)
                     {
-                        Date = DateTime.Parse(WeatherResponse.Daily.Time[i]),
-                        MaxTemperature = (float)max,
-                        MinTemperature = (float)min,
-                        AverageTemperature = ((float)max + (float)min) / 2,
-                        City = request.City
-                    };
-                    await AddWeatherRecord(record);
-                    recordsList.Add(record);
 
+                        var max = WeatherResponse.Daily.TemperatureMax[j];
+                        var min = WeatherResponse.Daily.TemperatureMin[j];
+
+                        if (max == null || min == null)
+                            continue;
+
+                        var record = new WeatherRecord
+                        {
+                            Date = DateTime.Parse(WeatherResponse.Daily.Time[j]),
+                            MaxTemperature = (float)max,
+                            MinTemperature = (float)min,
+                            AverageTemperature = ((float)max + (float)min) / 2,
+                            City = request.City
+                        };
+                        await AddWeatherRecord(record);
+                        recordsList.Add(record);
+
+
+                    }
+                  
                 }
                 return recordsList;
             }

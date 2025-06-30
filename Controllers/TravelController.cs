@@ -1,12 +1,11 @@
 using FlightCast.Models;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 //[Authorize(Roles = "Admin")]
-public class WeatherController : Controller
+public class TravelController : Controller
 {
     private readonly IWeatherService _weatherService;
-    public WeatherController(IWeatherService weatherService)
+    public TravelController(IWeatherService weatherService)
     {
         _weatherService = weatherService;
     }
@@ -16,7 +15,7 @@ public class WeatherController : Controller
     }
 
 
-   
+
     [HttpPost]
     public async Task<IActionResult> GetWeather(WeatherRequest request)
     {
@@ -25,7 +24,13 @@ public class WeatherController : Controller
 
         var records = await _weatherService.GetHistoricalWeatherAsync(request);
 
+        var model = new TravelResultsInfo
+        {
+            weatherRequest = request,
+            weatherRecords = records
 
-        return View("Results", records);
+        };
+
+        return View("Results", model);
     }
 }

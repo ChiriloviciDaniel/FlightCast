@@ -1,0 +1,90 @@
+@model FlightCast.Models.TravelResultsInfo
+
+@{
+    var groupedByYear = Model?.weatherRecords?.GroupBy(x => x.Date.Year)
+    .OrderByDescending(g => g.Key)
+    .ToList();
+}
+
+@if (Model == null || Model.weatherRecords == null || !Model.weatherRecords.Any())
+{
+    <p>No data found for selected period or location</p>
+}
+else
+{
+    <h2 class="mb-4 text-primary text-center">Weather in @Model.weatherRecords.FirstOrDefault()?.City</h2>
+
+    <div class="container">
+        <div class="row row-cols-1 row-cols-md-3 g-4">
+            @foreach (var group in groupedByYear!)
+            {
+                var minDate = group.Min(x => x.Date);
+                var maxDate = group.Max(x => x.Date);
+                var avgMaxTemp = group.Average(x => x.MaxTemperature);
+                var avgMinTemp = group.Average(x => x.MinTemperature);
+                var avgTemp = group.Average(x => x.AverageTemperature);
+                var collapseId = $"details{group.Key}";
+                <div class="col">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-body">
+                            <h5 class="card-title">@group.Key</h5>
+                            <p class="mb-1">@minDate.ToString("MM.dd") – @maxDate.ToString("MM.dd")</p>
+                            <ul class="list-unstyled small mb-3">
+                                <li><strong>Avg Max Temp:</strong> @avgMaxTemp.ToString("0.0")°C</li>
+                                <li><strong>Avg Min Temp:</strong> @avgMinTemp.ToString("0.0")°C</li>
+                                <li><strong>Avg Temp:</strong> @avgTemp.ToString("0.0")°C</li>
+                            </ul>
+
+                            <button class="btn btn-sm btn-primary toggle-details-btn" type="button" data-bs-toggle="collapse"
+                                data-bs-target="#@collapseId" aria-expanded="false" aria-controls="@collapseId"
+                                data-text-show="Show Details" data-text-hide="Collapse All">
+                                Show Details
+                            </button>
+
+                            <div class="collapse mt-3" id="@collapseId">
+                                <div class="card card-body" style="max-height: 300px; overflow-y: auto;">
+                                    @foreach (var item in group.OrderByDescending(x => x.Date))
+                                    {
+                                        <p class="mb-1">
+                                            <strong>@item.Date.ToString("yyyy-MM-dd"):</strong>
+                                            Max: @item.MaxTemperature&nbsp;°C,
+                                            Min: @item.MinTemperature&nbsp;°C,
+                                            Avg: @item.AverageTemperature&nbsp;°C
+                                        </p>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <h2 class="mt-5">Flight Offers</h2>
+    <!-- Flight module -->
+
+    <h2 class="mt-5">Attractions</h2>
+    <!-- Attractions module -->
+}
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const toggleButtons = document.querySelectorAll('.toggle-details-btn');
+
+            toggleButtons.forEach(btn => {
+                const targetSelector = btn.getAttribute('data-bs-target');
+                const collapseEl = document.querySelector(targetSelector);
+
+                collapseEl.addEventListener('show.bs.collapse', () => {
+                    btn.textContent = btn.getAttribute('data-text-hide');
+                });
+
+                collapseEl.addEventListener('hide.bs.collapse', () => {
+                    btn.textContent = btn.getAttribute('data-text-show');
+                });
+            });
+        });
+    </script>
+}
