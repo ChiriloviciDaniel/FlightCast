@@ -2,10 +2,10 @@
 
 
 <h2>Weather History</h2>
-<form asp-action="GetWeather" method="post">
+<form asp-action="GetTravelData" method="post">
     <div class="form group">
         <label for="city">City:</label>
-        <input type="text" id="city" name="city" class="form-control" required />
+        <input type="text" id="cityName" name="city.Name" class="form-control" required />
 
         <label for="startDate">Start Date:</label>
         <input type="date" id="startDate" name="startDate" class="form-control" required />
@@ -13,8 +13,6 @@
         <label for="endDate">End Date:</label>
         <input type="date" id="endDate" name="endDate" class="form-control" required />
 
-        <button type="submit" class="btn btn-primary mt-3">Get Weather</button>
+        <button type="submit" class="btn btn-primary mt-3">Get Travel Info</button>
     </div>
 </form>
-<div class="weather-wrapper">
-</div>

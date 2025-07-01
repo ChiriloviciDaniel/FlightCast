@@ -37,7 +37,7 @@ else
 
                             <button class="btn btn-sm btn-primary toggle-details-btn" type="button" data-bs-toggle="collapse"
                                 data-bs-target="#@collapseId" aria-expanded="false" aria-controls="@collapseId"
-                                data-text-show="Show Details" data-text-hide="Collapse All">
+                                data-text-show="Show Details" data-text-hide="Collapse Details">
                                 Show Details
                             </button>
 
@@ -65,7 +65,72 @@ else
     <!-- Flight module -->
 
     <h2 class="mt-5">Attractions</h2>
-    <!-- Attractions module -->
+
+    @if (Model.attractions != null && Model.attractions.Any())
+    {
+        <div class="row">
+            @foreach (var attraction in Model.attractions)
+            {
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    @if (attraction.ImageUrls != null && attraction.ImageUrls.Any())
+                    {
+                        <img src="@attraction.ImageUrls[0]" class="card-img-top" alt="@attraction.Name"
+                            style="max-height:200px; object-fit:cover;" />
+                    }
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title">@attraction.Name</h5>
+
+                        @if (attraction.Categories != null && attraction.Categories.Any())
+                        {
+                            <p class="card-text"><strong>Categories:</strong></p>
+                            <ul>
+                                @foreach (var cat in attraction.Categories)
+                                {
+                                    <li>@cat.Replace(".", " ")</li>
+                                }
+                            </ul>
+                        }
+
+                        @if (!string.IsNullOrEmpty(attraction.Description))
+                        {
+                            <p class="card-text">@attraction.Description</p>
+                        }
+
+                        @if (attraction.Rating.HasValue)
+                        {
+                            <p class="card-text mt-auto"><strong>Rating:</strong> @attraction.Rating.Value.ToString("0.00")</p>
+                        }
+
+                        @if (!string.IsNullOrEmpty(attraction.Website))
+                        {
+                            <p class="card-text">
+                                <strong>Website:</strong>
+                                <a href="@attraction.Website" target="_blank" rel="noopener noreferrer">@attraction.Website</a>
+                            </p>
+                        }
+
+                        @if (!string.IsNullOrEmpty(attraction.OpeningHours))
+                        {
+                            <p class="card-text"><strong>Opening Hours:</strong> @attraction.OpeningHours</p>
+                        }
+
+                        @if (attraction.Latitude.HasValue && attraction.Longitude.HasValue)
+                        {
+                            <p class="card-text"><strong>Coordinates:</strong> @attraction.Latitude.Value,
+                                @attraction.Longitude.Value</p>
+                        }
+                    </div>
+                </div>
+            </div>
+            }
+        </div>
+    }
+    else
+    {
+        <p>No attractions found.</p>
+    }
+
 }
 
 @section Scripts {

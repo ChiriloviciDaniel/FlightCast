@@ -4,7 +4,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using FlightCast.Data;
 using FlightCast.Models;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
+using Models;
 
 public class WeatherService : IWeatherService
 {
@@ -15,6 +17,16 @@ public class WeatherService : IWeatherService
     {
         _context = context;
         _httpClient = httpClient;
+    }
+
+    public async Task SaveCityCoordinateAsync(City city)
+    {
+        var record = await _context.cities.FirstOrDefaultAsync(c => c.Name == city.Name);
+        if (record == null)
+        {
+            _context.cities.Add(city);
+            await _context.SaveChangesAsync();
+        }
     }
 
 
@@ -47,22 +59,43 @@ public class WeatherService : IWeatherService
     {
         try
         {
-            var recordsDB = await GetWeatherRecordsAsync(request.City, request.StartDate, request.EndDate);
+            if (request.city == null)
+                return new List<WeatherRecord>();
+            if (request.city.Name == null)
+                return new List<WeatherRecord>();
 
+            double lat;
+            double lon;
+            var recordsDB = await GetWeatherRecordsAsync(request.city.Name, request.StartDate, request.EndDate);
+            //Remove from request list the records from DB
             if (!recordsDB.Any())
             {
                 var recordsList = new List<WeatherRecord>();
+                if (request.city.Latitude == 0 || request.city.Longitude == 0)
+                {
+                    //Create a predefined list of cities with their coordinates to avoid multiple API calls
+                    var geoResp = await _httpClient.GetFromJsonAsync<GeocodingResponse>(
+                        $"https://geocoding-api.open-meteo.com/v1/search?name={request.city.Name}");
 
-                //Create a predefined list of cities with their coordinates to avoid multiple API calls
-                var geoResp = await _httpClient.GetFromJsonAsync<GeocodingResponse>(
-                    $"https://geocoding-api.open-meteo.com/v1/search?name={request.City}");
+                    var location = geoResp?.Results?.FirstOrDefault();
+                    if (location == null)
+                        return new List<WeatherRecord>();
 
-                var location = geoResp?.Results?.FirstOrDefault();
-                if (location == null)
-                    return new List<WeatherRecord>();
-
-                double lat = location.Latitude;
-                double lon = location.Longitude;
+                    lat = location.Latitude;
+                    lon = location.Longitude;
+                    var cityToSave = new City
+                    {
+                        Name = request.city.Name,
+                        Latitude = lat,
+                        Longitude = lon
+                    };
+                    await SaveCityCoordinateAsync(cityToSave);
+                }
+                else
+                {
+                    lat = request.city.Latitude;
+                    lon = request.city.Longitude;
+                }
 
                 for (int i = 1; i < 4; i++)
                 {
@@ -94,14 +127,14 @@ public class WeatherService : IWeatherService
                             MaxTemperature = (float)max,
                             MinTemperature = (float)min,
                             AverageTemperature = ((float)max + (float)min) / 2,
-                            City = request.City
+                            City = request.city.Name
                         };
                         await AddWeatherRecord(record);
                         recordsList.Add(record);
 
 
                     }
-                  
+
                 }
                 return recordsList;
             }
