@@ -19,14 +19,25 @@ public class WeatherService : IWeatherService
         _httpClient = httpClient;
     }
 
-    public async Task SaveCityCoordinateAsync(City city)
+    public async Task<City?> SaveCityCoordinate(City city)
     {
-        var record = await _context.cities.FirstOrDefaultAsync(c => c.Name == city.Name);
+        if (string.IsNullOrWhiteSpace(city.Name))
+        {
+            // Handle null or empty city.Name as needed (e.g., throw exception or return)
+            return null;
+        }
+
+        var cityNameNormalized = city.Name.Trim().ToLower();
+
+        var record = await _context.cities.FirstOrDefaultAsync(c =>
+            c.Name != null && c.Name.ToLower() == cityNameNormalized);
         if (record == null)
         {
             _context.cities.Add(city);
             await _context.SaveChangesAsync();
+            return city;
         }
+        return record;
     }
 
 
@@ -36,85 +47,106 @@ public class WeatherService : IWeatherService
             throw new ArgumentException("Record cannot be null", nameof(record));
         _context.WeatherRecords.Add(record);
         await _context.SaveChangesAsync();
-
-
     }
-
-    public async Task<List<WeatherRecord>> GetWeatherRecordsAsync(string city, DateTime startDate, DateTime endDate)
-    {
-        if (string.IsNullOrEmpty(city))
-            throw new ArgumentException("City cannot be null or empty", nameof(city));
-
-        if (startDate > endDate)
-            throw new ArgumentException("Start date cannot be after endDate");
-
-        var records = await _context.WeatherRecords
-            .Where(w => w.City == city && w.Date >= startDate && w.Date <= endDate)
-            .ToListAsync();
-
-        return records;
-    }
-
     public async Task<List<WeatherRecord>> GetHistoricalWeatherAsync(WeatherRequest request)
     {
         try
         {
-            if (request.city == null)
-                return new List<WeatherRecord>();
-            if (request.city.Name == null)
+            if (request?.city?.Name == null)
                 return new List<WeatherRecord>();
 
-            double lat;
-            double lon;
-            var recordsDB = await GetWeatherRecordsAsync(request.city.Name, request.StartDate, request.EndDate);
-            //Remove from request list the records from DB
-            if (!recordsDB.Any())
+            double lat, lon;
+
+            // Try to find city with valid coordinates in DB
+            var existingCity = await _context.cities.FirstOrDefaultAsync(c =>
+                c.Name == request.city.Name &&
+                c.Latitude != 0 &&
+                c.Longitude != 0);
+
+            if (existingCity != null)
             {
-                var recordsList = new List<WeatherRecord>();
-                if (request.city.Latitude == 0 || request.city.Longitude == 0)
+                lat = existingCity.Latitude;
+                lon = existingCity.Longitude;
+            }
+            else
+            {
+                // Call geocoding API to get city coordinates
+                var geoResp = await _httpClient.GetFromJsonAsync<GeocodingResponse>(
+                    $"https://geocoding-api.open-meteo.com/v1/search?name={request.city.Name}");
+
+                var location = geoResp?.Results?.FirstOrDefault();
+                if (location == null)
+                    return new List<WeatherRecord>();
+
+                lat = location.Latitude;
+                lon = location.Longitude;
+
+                // Save city coordinates to DB
+                var cityToSave = new City
                 {
-                    //Create a predefined list of cities with their coordinates to avoid multiple API calls
-                    var geoResp = await _httpClient.GetFromJsonAsync<GeocodingResponse>(
-                        $"https://geocoding-api.open-meteo.com/v1/search?name={request.city.Name}");
+                    Name = request.city.Name,
+                    Latitude = lat,
+                    Longitude = lon
+                };
+                await SaveCityCoordinate(cityToSave);
+            }
 
-                    var location = geoResp?.Results?.FirstOrDefault();
-                    if (location == null)
-                        return new List<WeatherRecord>();
+            int yearsToCheck = 3;
+            var recordsList = new List<WeatherRecord>();
 
-                    lat = location.Latitude;
-                    lon = location.Longitude;
-                    var cityToSave = new City
-                    {
-                        Name = request.city.Name,
-                        Latitude = lat,
-                        Longitude = lon
-                    };
-                    await SaveCityCoordinateAsync(cityToSave);
+            // Get all existing records for the entire 3-year range upfront (to avoid multiple DB calls)
+            var earliestStartDate = request.StartDate.AddYears(-yearsToCheck);
+            var latestEndDate = request.EndDate.AddYears(-1);
+
+            var existingRecords = await _context.WeatherRecords
+                .Where(w => w.City == request.city.Name && w.Date >= earliestStartDate && w.Date <= latestEndDate)
+                .ToListAsync();
+
+            // Add all existing records to the final result list
+            recordsList.AddRange(existingRecords);
+
+            // Loop over each year and find missing dates
+            for (int i = 1; i <= yearsToCheck; i++)
+            {
+                var startDate = request.StartDate.AddYears(-i);
+                var endDate = request.EndDate.AddYears(-i);
+
+                // Get dates already present in DB for this year range
+                var datesInDb = existingRecords
+                    .Where(r => r.Date >= startDate && r.Date <= endDate)
+                    .Select(r => r.Date)
+                    .ToHashSet();
+
+                // Identify missing dates for this year
+                var missingDates = new List<DateTime>();
+                for (var date = startDate; date <= endDate; date = date.AddDays(1))
+                {
+                    if (!datesInDb.Contains(date))
+                        missingDates.Add(date);
                 }
-                else
-                {
-                    lat = request.city.Latitude;
-                    lon = request.city.Longitude;
-                }
 
-                for (int i = 1; i < 4; i++)
-                {
+                if (missingDates.Count == 0)
+                    continue; // No missing data for this year, skip API call
 
+                // Fetch weather data for each missing date individually
+                foreach (var date in missingDates)
+                {
                     string url = $"https://archive-api.open-meteo.com/v1/archive" +
-                             $"?latitude={lat}" +
-                             $"&longitude={lon}" +
-                             $"&start_date={request.StartDate.AddYears(-i):yyyy-MM-dd}" +
-                             $"&end_date={request.EndDate.AddYears(-i):yyyy-MM-dd}" +
-                             $"&daily=temperature_2m_max,temperature_2m_min" +
-                             $"&timezone=auto";
+                                 $"?latitude={lat}" +
+                                 $"&longitude={lon}" +
+                                 $"&start_date={date:yyyy-MM-dd}" +
+                                 $"&end_date={date:yyyy-MM-dd}" +
+                                 $"&daily=temperature_2m_max,temperature_2m_min" +
+                                 $"&timezone=auto";
 
                     var WeatherResponse = await _httpClient.GetFromJsonAsync<WeatherApiResponse>(url);
+
+                    // Skip this date if no data returned
                     if (WeatherResponse?.Daily?.TemperatureMax == null || WeatherResponse?.Daily?.TemperatureMin == null)
-                        return new List<WeatherRecord>();
+                        continue;
 
                     for (int j = 0; j < WeatherResponse.Daily.Time.Length; j++)
                     {
-
                         var max = WeatherResponse.Daily.TemperatureMax[j];
                         var min = WeatherResponse.Daily.TemperatureMin[j];
 
@@ -129,20 +161,17 @@ public class WeatherService : IWeatherService
                             AverageTemperature = ((float)max + (float)min) / 2,
                             City = request.city.Name
                         };
-                        await AddWeatherRecord(record);
+                        //Console.WriteLine($"@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@mising date ultima oara 2#@3213213123{record.Date} ");
+                        _context.WeatherRecords.Add(record);
                         recordsList.Add(record);
-
-
                     }
-
                 }
-                return recordsList;
-            }
-            else
-            {
-                return recordsDB;
             }
 
+            // Save all newly added records at once
+            await _context.SaveChangesAsync();
+
+            return recordsList;
         }
         catch (HttpRequestException ex)
         {

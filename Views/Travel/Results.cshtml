@@ -67,17 +67,23 @@ else
     <h2 class="mt-5">Attractions</h2>
 
     @if (Model.attractions != null && Model.attractions.Any())
-    {
-        <div class="row">
-            @foreach (var attraction in Model.attractions)
-            {
+{
+    <div class="row">
+        @foreach (var attraction in Model.attractions)
+        {
             <div class="col-md-4 mb-4">
                 <div class="card h-100">
                     @if (attraction.ImageUrls != null && attraction.ImageUrls.Any())
                     {
                         <img src="@attraction.ImageUrls[0]" class="card-img-top" alt="@attraction.Name"
-                            style="max-height:200px; object-fit:cover;" />
+                             style="max-height:200px; object-fit:cover;" />
                     }
+                    else
+                    {
+                        <img src="https://via.placeholder.com/400x200?text=No+Image" class="card-img-top" alt="No image available"
+                             style="max-height:200px; object-fit:cover;" />
+                    }
+
                     <div class="card-body d-flex flex-column">
                         <h5 class="card-title">@attraction.Name</h5>
 
@@ -87,7 +93,10 @@ else
                             <ul>
                                 @foreach (var cat in attraction.Categories)
                                 {
-                                    <li>@cat.Replace(".", " ")</li>
+                                    <li>
+                                        @System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(
+                                            cat.Replace(".", " ").Replace("_", " "))
+                                    </li>
                                 }
                             </ul>
                         }
@@ -97,9 +106,9 @@ else
                             <p class="card-text">@attraction.Description</p>
                         }
 
-                        @if (attraction.Rating.HasValue)
+                        @if (attraction.Popularity.HasValue)
                         {
-                            <p class="card-text mt-auto"><strong>Rating:</strong> @attraction.Rating.Value.ToString("0.00")</p>
+                            <p class="card-text mt-auto"><strong>Popularity Score:</strong> @attraction.Popularity.Value.ToString("0")</p>
                         }
 
                         @if (!string.IsNullOrEmpty(attraction.Website))
@@ -117,19 +126,25 @@ else
 
                         @if (attraction.Latitude.HasValue && attraction.Longitude.HasValue)
                         {
-                            <p class="card-text"><strong>Coordinates:</strong> @attraction.Latitude.Value,
-                                @attraction.Longitude.Value</p>
+                            var lat = attraction.Latitude.Value;
+                            var lon = attraction.Longitude.Value;
+                            <p class="card-text">
+                                <strong>Location:</strong>
+                                <a href="https://www.google.com/maps?q=@lat,@lon" target="_blank" rel="noopener noreferrer">
+                                    @lat.ToString("0.0000"), @lon.ToString("0.0000")
+                                </a>
+                            </p>
                         }
                     </div>
                 </div>
             </div>
-            }
-        </div>
-    }
-    else
-    {
-        <p>No attractions found.</p>
-    }
+        }
+    </div>
+}
+else
+{
+    <p>No attractions found.</p>
+}
 
 }
 

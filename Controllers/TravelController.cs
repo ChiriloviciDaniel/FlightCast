@@ -2,6 +2,7 @@ using System.Runtime.InteropServices.JavaScript;
 using System.Text.Json;
 using FlightCast.Models;
 using Microsoft.AspNetCore.Mvc;
+using Models;
 
 //[Authorize(Roles = "Admin")]
 public class TravelController : Controller
@@ -33,23 +34,22 @@ public class TravelController : Controller
         if (request.city == null)
             return BadRequest("City information is required!");
 
-        if (request.city.Latitude == 0 || request.city.Longitude == 0)
-        {
-            var geoResp = await _httpClient.GetFromJsonAsync<GeocodingResponse>(
-             $"https://geocoding-api.open-meteo.com/v1/search?name={request.city.Name}");
-
-            var location = geoResp?.Results?.FirstOrDefault();
-            if (location == null)
-                return Content("City not found!");
-
-            request.city.Latitude = location.Latitude;
-            request.city.Longitude = location.Longitude;
-
-            await _weatherService.SaveCityCoordinateAsync(request.city);
-
-        }
         var records = await _weatherService.GetHistoricalWeatherAsync(request);
-        var attractions = await _attractionsService.GetAttractionsAsync(request.city);
+        
+        string? cityName = records.FirstOrDefault()?.City;
+
+        if (string.IsNullOrEmpty(cityName))
+        {
+            // Handle no records or no city found (return empty attractions or error)
+            return View("Results", new TravelResultsInfo
+            {
+                weatherRequest = request,
+                weatherRecords = records,
+                attractions = new List<Attraction>()
+            });
+        }
+
+        var attractions = await _attractionsService.GetAttractionsAsync(cityName);
 
         var model = new TravelResultsInfo
         {

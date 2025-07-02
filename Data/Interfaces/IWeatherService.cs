@@ -4,7 +4,6 @@ public interface IWeatherService
 {
 
     Task AddWeatherRecord(WeatherRecord record);
-    Task SaveCityCoordinateAsync(City city);
-    Task<List<WeatherRecord>> GetWeatherRecordsAsync(string city, DateTime startDate, DateTime endDate);
+    Task<City?> SaveCityCoordinate(City city);
     Task<List<WeatherRecord>> GetHistoricalWeatherAsync(WeatherRequest request);
 }
