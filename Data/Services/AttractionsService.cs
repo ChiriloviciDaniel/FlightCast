@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FlightCast.Data;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Models;
 
@@ -8,14 +9,25 @@ public class AttractionsService
     private readonly AppDbContext _context;
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _config;
+    private readonly IHubContext<BackgroundTaskHub> _hubContext;
+    private readonly IBackgroundTTDService _backgroundTTDService;
 
-    public AttractionsService(HttpClient httpClient, IConfiguration config, AppDbContext context)
+    public AttractionsService(IHttpClientFactory httpClientFactory, IConfiguration config, AppDbContext context, IHubContext<BackgroundTaskHub> hubContext, IBackgroundTTDService backgroundTTDService)
     {
+        _backgroundTTDService = backgroundTTDService;
+        _hubContext = hubContext;
         _context = context;
-        _httpClient = httpClient;
+        _httpClient = httpClientFactory.CreateClient();
         _config = config;
+        _hubContext = hubContext;
     }
-
+    public async Task<List<Attraction>> GetAttractionsFromDBAsync(string city)
+    {
+        var query = _context.attractions
+            .Include(a => a.City)
+            .Where(a => a.City.Name == city);
+        return await query.ToListAsync();
+    }
     public async Task<List<Attraction>> GetAttractionsAsync(string city)
     {
         // Find city in the database by name
@@ -35,11 +47,11 @@ public class AttractionsService
         }
         var apiKey = _config["ApiKeys:OpenTripMap"];
         var kinds = "historic,cultural,architecture,monuments,sport,beaches,museums,religion,natural";
-        var url = $"https://api.opentripmap.com/0.1/en/places/radius?radius=10000&lon={City.Longitude}&lat={City.Latitude}&rate=3&format=json&limit=50&kinds={kinds}&apikey={apiKey}";
+        var url = $"https://api.opentripmap.com/0.1/en/places/radius?radius=10000&lon={City.Longitude}&lat={City.Latitude}&rate=3&format=json&limit=10&kinds={kinds}&lang=en&apikey={apiKey}";
 
         try
         {
-            var response = await _httpClient.GetAsync(url);
+            var response = await SendWithRetryAsync(() => _httpClient.GetAsync(url));
 
             if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
             {
@@ -48,9 +60,13 @@ public class AttractionsService
             }
 
             response.EnsureSuccessStatusCode();
-
             var json = await response.Content.ReadAsStringAsync();
-            return await ParseAttractionsFromJson(json, City);
+
+            var initialThingsToDo = await ParseAttractionsFromJson(json, City);
+
+            //background task to fetch re memaining 40
+            _ = Task.Run(() => _backgroundTTDService.FetchRemainingThingsToDoAsync(City));
+            return initialThingsToDo;
         }
         catch (HttpRequestException ex)
         {
@@ -64,13 +80,30 @@ public class AttractionsService
         }
     }
 
-    private async Task<List<Attraction>> ParseAttractionsFromJson(string json, City city)
+    public async Task<List<Attraction>> ParseAttractionsFromJson(string json, City city)
     {
 
         if (city.Latitude == 0 || city.Longitude == 0)
         {
             Console.WriteLine("Warning: City coordinates are zero, skipping API call");
             return new List<Attraction>();
+        }
+
+        // Try to load the city from the database to get a tracked entity
+        var cityFromDb = await _context.cities.FirstOrDefaultAsync(c => c.Id == city.Id);
+
+        if (cityFromDb == null)
+        {
+            Console.WriteLine($"City with Id {city.Id} not found in DB.");
+
+            // Option 1: Add new city but without setting Id manually
+            // Clear the Id if it is set, so EF can generate it
+            city.Id = 0; // or default(int)
+            _context.cities.Add(city);
+            await _context.SaveChangesAsync();
+            Console.WriteLine("Add it city to db@@@@@@@@@@@@@@@@@@@@@@@@@@");
+
+            cityFromDb = city; // now tracked with new Id
         }
         var attractions = new List<Attraction>();
         var apiKey = _config["ApiKeys:OpenTripMap"];
@@ -99,26 +132,27 @@ public class AttractionsService
                 Console.WriteLine($"Error parsing basic attraction info: {ex.Message}");
             }
         }
-
+        Console.WriteLine($"Total attractions fetched from API: {basicAttractions.Count}");
         var xids = basicAttractions.Select(x => x.Xid).ToList();
 
         var existingXids = _context.attractions
             .Where(a => xids.Contains(a.Xid))
             .Select(a => a.Xid)
             .ToHashSet();
-
+        Console.WriteLine($"Attractions already in DB: {existingXids.Count}");
         var newAttractions = basicAttractions.Where(x => !existingXids.Contains(x.Xid)).ToList();
         // Prepare tasks for fetching details in parallel
+        Console.WriteLine($"New attractions to process: {newAttractions.Count}");
         var detailTasks = newAttractions.Select(async basic =>
         {
             try
             {
-                var detailUrl = $"https://api.opentripmap.com/0.1/en/places/xid/{basic.Xid}?apikey={apiKey}";
+                var detailUrl = $"https://api.opentripmap.com/0.1/en/places/xid/{basic.Xid}?lang=en&apikey={apiKey}";
 
                 // Optional small delay to reduce risk of rate limiting per request
                 await Task.Delay(100);
 
-                var detailResponse = await _httpClient.GetAsync(detailUrl);
+                var detailResponse = await SendWithRetryAsync(() => _httpClient.GetAsync(detailUrl));
 
                 if (detailResponse.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
                 {
@@ -180,7 +214,7 @@ public class AttractionsService
                     AddressNumber = number,
                     AddressCity = cityName,
                     AddressCountry = country,
-                    City = city
+                    City = cityFromDb
                 };
             }
             catch (Exception ex)
@@ -196,11 +230,17 @@ public class AttractionsService
             .Cast<Attraction>()
             .ToList();
 
+        Console.WriteLine($"Fetched detailed info for {newAttractionsList.Count} new attractions");
         // Save new attractions to the database
         if (newAttractionsList.Count > 0)
         {
             _context.attractions.AddRange(newAttractionsList);
             await _context.SaveChangesAsync();
+            Console.WriteLine($"Saved {newAttractionsList.Count} new attractions to database");
+        }
+        else
+        {
+            Console.WriteLine("No new attractions to save");
         }
 
         // Return all attractions: both cached and just-fetched
@@ -209,7 +249,29 @@ public class AttractionsService
             .Include(a => a.City)
             .ToListAsync();
 
+        Console.WriteLine($"Returning {allAttractions.Count} total attractions");
         return allAttractions;
     }
+
+    private async Task<HttpResponseMessage> SendWithRetryAsync(Func<Task<HttpResponseMessage>> sendRequest, int maxRetries = 3, int baseDelayMs = 1000)
+    {
+        int attempt = 0;
+        while (attempt < maxRetries)
+        {
+            var response = await sendRequest();
+
+            if (response.StatusCode != System.Net.HttpStatusCode.TooManyRequests)
+            {
+                return response;
+            }
+
+            attempt++;
+            int delay = baseDelayMs * (int)Math.Pow(2, attempt);
+            Console.WriteLine($"Rate limit hit. Retrying attempt {attempt} after {delay}ms..");
+            await Task.Delay(delay);
+        }
+        return await sendRequest();
+    }
+
 
 }

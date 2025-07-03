@@ -62,90 +62,12 @@ else
     </div>
 
     <h2 class="mt-5">Flight Offers</h2>
-    <!-- Flight module -->
 
-    <h2 class="mt-5">Attractions</h2>
+    <h2 class="mt-5">Things to do</h2>
 
-    @if (Model.attractions != null && Model.attractions.Any())
-{
-    <div class="row">
-        @foreach (var attraction in Model.attractions)
-        {
-            <div class="col-md-4 mb-4">
-                <div class="card h-100">
-                    @if (attraction.ImageUrls != null && attraction.ImageUrls.Any())
-                    {
-                        <img src="@attraction.ImageUrls[0]" class="card-img-top" alt="@attraction.Name"
-                             style="max-height:200px; object-fit:cover;" />
-                    }
-                    else
-                    {
-                        <img src="https://via.placeholder.com/400x200?text=No+Image" class="card-img-top" alt="No image available"
-                             style="max-height:200px; object-fit:cover;" />
-                    }
-
-                    <div class="card-body d-flex flex-column">
-                        <h5 class="card-title">@attraction.Name</h5>
-
-                        @if (attraction.Categories != null && attraction.Categories.Any())
-                        {
-                            <p class="card-text"><strong>Categories:</strong></p>
-                            <ul>
-                                @foreach (var cat in attraction.Categories)
-                                {
-                                    <li>
-                                        @System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(
-                                            cat.Replace(".", " ").Replace("_", " "))
-                                    </li>
-                                }
-                            </ul>
-                        }
-
-                        @if (!string.IsNullOrEmpty(attraction.Description))
-                        {
-                            <p class="card-text">@attraction.Description</p>
-                        }
-
-                        @if (attraction.Popularity.HasValue)
-                        {
-                            <p class="card-text mt-auto"><strong>Popularity Score:</strong> @attraction.Popularity.Value.ToString("0")</p>
-                        }
-
-                        @if (!string.IsNullOrEmpty(attraction.Website))
-                        {
-                            <p class="card-text">
-                                <strong>Website:</strong>
-                                <a href="@attraction.Website" target="_blank" rel="noopener noreferrer">@attraction.Website</a>
-                            </p>
-                        }
-
-                        @if (!string.IsNullOrEmpty(attraction.OpeningHours))
-                        {
-                            <p class="card-text"><strong>Opening Hours:</strong> @attraction.OpeningHours</p>
-                        }
-
-                        @if (attraction.Latitude.HasValue && attraction.Longitude.HasValue)
-                        {
-                            var lat = attraction.Latitude.Value;
-                            var lon = attraction.Longitude.Value;
-                            <p class="card-text">
-                                <strong>Location:</strong>
-                                <a href="https://www.google.com/maps?q=@lat,@lon" target="_blank" rel="noopener noreferrer">
-                                    @lat.ToString("0.0000"), @lon.ToString("0.0000")
-                                </a>
-                            </p>
-                        }
-                    </div>
-                </div>
-            </div>
-        }
+    <div id="attractions-container">
+        <partial name="TTDPartial" model="Model.attractions" />
     </div>
-}
-else
-{
-    <p>No attractions found.</p>
-}
-
 }
 
 @section Scripts {
@@ -166,5 +88,47 @@ else
                 });
             });
         });
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.5/signalr.min.js"></script>
+    <!-- Check for updates in backroud task-->
+    <script>
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/backgroundTaskHub")
+            .build();
+
+        console.log('SignalR connection created.');
+
+        connection.on("ThingsToDoUpdated", function (cityName) {
+            console.log(`ThingsToDoUpdated event received for city: ${cityName}`);
+
+            const spinner = document.getElementById('loading-spinner');
+            if (spinner) {
+                console.log('Showing spinner...');
+                spinner.style.display = 'block';
+            }
+
+            fetch(`/Travel/GetTTDPartial?cityName=${encodeURIComponent(cityName)}&full=true`)
+                .then(response => {
+                    console.log('Fetch response received');
+                    return response.text();
+                })
+                .then(html => {
+                    console.log('Replacing inner HTML of attractions-container');
+                    document.getElementById('attractions-container').innerHTML = html;
+                    if (spinner) {
+                        console.log('Hiding spinner...');
+                        spinner.style.display = 'none';
+                    }
+                })
+                .catch(err => {
+                    console.error('Error loading attractions partial:', err);
+                    if (spinner) spinner.style.display = 'none';
+                });
+        });
+
+        connection.start()
+            .then(() => console.log('SignalR connection started'))
+            .catch(err => console.error('Error starting SignalR connection:', err.toString()));
+
     </script>
 }

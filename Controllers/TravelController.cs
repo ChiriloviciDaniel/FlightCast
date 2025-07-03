@@ -20,7 +20,15 @@ public class TravelController : Controller
     {
         return View();
     }
+    [HttpGet]
+    public async Task<IActionResult> GetTTDPartial(string cityName)
+    {
+        if (string.IsNullOrEmpty(cityName))
+            return BadRequest("City is required");
 
+        var attractions = await _attractionsService.GetAttractionsFromDBAsync(cityName);
+        return PartialView("TTDPartial", attractions);
+    }
 
 
     [HttpPost]
@@ -35,7 +43,7 @@ public class TravelController : Controller
             return BadRequest("City information is required!");
 
         var records = await _weatherService.GetHistoricalWeatherAsync(request);
-        
+
         string? cityName = records.FirstOrDefault()?.City;
 
         if (string.IsNullOrEmpty(cityName))
@@ -48,8 +56,10 @@ public class TravelController : Controller
                 attractions = new List<Attraction>()
             });
         }
-
-        var attractions = await _attractionsService.GetAttractionsAsync(cityName);
+        var attractions = await _attractionsService.GetAttractionsFromDBAsync(cityName);
+        if(attractions.Count<10)
+            attractions = await _attractionsService.GetAttractionsAsync(cityName);
+        
 
         var model = new TravelResultsInfo
         {

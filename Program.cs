@@ -7,11 +7,13 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllersWithViews();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
-
+builder.Services.AddSignalR();
 builder.Services.AddScoped<IExpensesService, ExpensesService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddHttpClient<IWeatherService, WeatherService>();
-builder.Services.AddHttpClient<AttractionsService>();
+builder.Services.AddScoped<AttractionsService>();  // Scoped
+builder.Services.AddSingleton<IBackgroundTTDService, BackgroundTTDService>();  // Singleton
+builder.Services.AddHttpClient();
 
 builder.Services.AddAuthentication("MyCookieAuth")
     .AddCookie("MyCookieAuth", options =>
@@ -34,7 +36,7 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
-
+app.MapHub<BackgroundTaskHub>("/backgroundTaskHub");
 app.UseRouting();
 
 app.UseAuthentication();

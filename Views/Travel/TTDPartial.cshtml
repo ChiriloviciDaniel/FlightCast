@@ -1,0 +1,82 @@
+@model List<Models.Attraction>
+
+@if (Model != null && Model.Any())
+{
+    <div class="row">
+        @foreach (var attraction in Model)
+        {
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    @if (attraction.ImageUrls != null && attraction.ImageUrls.Any())
+                    {
+                        <img src="@attraction.ImageUrls[0]" class="card-img-top" alt="@attraction.Name"
+                            style="max-height:200px; object-fit:cover;" />
+                    }
+                    else
+                    {
+                        <img src="https://via.placeholder.com/400x200?text=No+Image" class="card-img-top" alt="No image available"
+                            style="max-height:200px; object-fit:cover;" />
+                    }
+
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title">@attraction.Name</h5>
+
+                        @if (attraction.Categories != null && attraction.Categories.Any())
+                        {
+                            <p class="card-text"><strong>Categories:</strong></p>
+                            <ul>
+                                @foreach (var cat in attraction.Categories)
+                                {
+                                    <li>
+                                        @System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(
+                                        cat.Replace(".", " ").Replace("_", " "))
+                                     </li>
+                                }
+                            </ul>
+                        }
+
+                        @if (!string.IsNullOrEmpty(attraction.Description))
+                        {
+                            <p class="card-text">@attraction.Description</p>
+                        }
+
+                        @if (attraction.Popularity.HasValue)
+                        {
+                            <p class="card-text mt-auto"><strong>Popularity Score:</strong>
+                                @attraction.Popularity.Value.ToString("0")</p>
+                        }
+
+                        @if (!string.IsNullOrEmpty(attraction.Website))
+                        {
+                            <p class="card-text">
+                                <strong>Website:</strong>
+                                <a href="@attraction.Website" target="_blank" rel="noopener noreferrer">@attraction.Website</a>
+                            </p>
+                        }
+
+                        @if (!string.IsNullOrEmpty(attraction.OpeningHours))
+                        {
+                            <p class="card-text"><strong>Opening Hours:</strong> @attraction.OpeningHours</p>
+                        }
+
+                        @if (attraction.Latitude.HasValue && attraction.Longitude.HasValue)
+                        {
+                            var lat = attraction.Latitude.Value;
+                            var lon = attraction.Longitude.Value;
+                            <p class="card-text">
+                                <strong>Location:</strong>
+                                <a href="https://www.google.com/maps?q=@lat,@lon" target="_blank" rel="noopener noreferrer">
+                                    @lat.ToString("0.0000"), @lon.ToString("0.0000")
+                                </a>
+                            </p>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <p>No attractions found.</p>
+}
